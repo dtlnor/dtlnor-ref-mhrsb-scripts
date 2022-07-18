@@ -39,7 +39,7 @@ local total_line = 0
 local total_column = 0
 -- top left of rectengle
 local printGeneralLine = function(cap, value, index)
-	draw.text(cap, cfg.general_x + cfg.rec_margin + index * cfg.index_width,
+	draw.text(tostring(cap), cfg.general_x + cfg.rec_margin + index * cfg.index_width,
 		cfg.general_y + general_line * cfg.line_space + cfg.rec_margin,
 		0xFFFFFFFF)
 	if value then
@@ -69,7 +69,7 @@ local dispObjectEffectManagerInfo = function(ObjEffectManager, index)
 	for i = 0, StandardData:call("get_Count") -1 do
 		local StandardDataSetting = StandardData:call("get_Item", i)
 		if StandardDataSetting then
-			local dispName = StandardDataSetting:call("get_dispName")
+			local dispName = StandardDataSetting:get_field("Comment")
 			local prefabDataName = StandardDataSetting:call("get_data"):call("get_Path")
 			printGeneralLine(dispName, prefabDataName, index)
 
@@ -115,7 +115,7 @@ re.on_frame(function()
 			if ContainerManager then
 				local Creator = ContainerManager:call("getCreator")
 				if Creator then
-					local object_name = Creator:call("get_Name")
+					local object_name = Creator:call("get_Name") --idk why this error
 					--local component = Creator:call("getComponent", sdk.find_type_definition("via.effect.script.ObjectEffectManager"):get_runtime_type() )
 
 					draw.text(i.."-"..tostring(object_name), 250 * math.floor((i-1) / 25) + 25 , 40 * ( (i-1) % 25) + 25 , 0xFFFFFFFF)
