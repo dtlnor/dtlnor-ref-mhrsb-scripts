@@ -1,9 +1,16 @@
+local Major = 3
+local Minor = 2
+local VERSION = Major+(Minor*0.1)
+
+local needs_initial_quest_data = true
+local cfg_QuestData = json.load_file("QuestDataDump.json")
+if cfg_QuestData then needs_initial_quest_data = false end
+
 local cfg = json.load_file("ArenaTargetQuest.json")
 
 if not cfg then
-	cfg = {
-	}
-	Target_questNo = {
+	cfg = {	}
+	local Target_questNo = {
 		203,
 		206,
 		207,
@@ -312,12 +319,55 @@ if not cfg then
 		385407,
 		385408,
 		315604,
-		315605
+		315605,
+		315602,
+		315629,
+		455614,
+		455615,
+		455616,
+		385501,
+		385502,
+		385503,
+		385504,
+		385505,
+		385506,
+		385507,
+		385508,
+		385509,
 	}
 	cfg.target_questNo = Target_questNo
-	
+	cfg.quest_dump_version = VERSION
 	json.dump_file("ArenaTargetQuest.json", cfg)
+	needs_initial_quest_data = true
 end
+
+if not cfg.quest_dump_version then
+	cfg.quest_dump_version = VERSION
+	needs_initial_quest_data = true
+	json.dump_file("ArenaTargetQuest.json", cfg)
+else
+	if (cfg.quest_dump_version < Major) then
+		cfg.quest_dump_version = VERSION
+		needs_initial_quest_data = true
+		json.dump_file("ArenaTargetQuest.json", cfg)
+	end
+end
+
+local map16Test = {
+	[82] = true,
+	[83] = true,
+	[84] = true,
+	[85] = true,
+	[89] = true,
+}
+
+local MapID = {
+	["Default"] = 0,
+	["Arena"] = 10,
+	["Infernal Springs"] = 9,
+	["Forlorn Arena"] = 14,
+	["Yawning Abyss"] = 16,
+}
 
 local function getNormalQuestDataList(questman, fieldname)
     local normalQuestData = questman:get_field(fieldname)
@@ -431,6 +481,7 @@ local function dump_quest_data(normalQuestData_array, normalQuestDataForEnemy_ar
 			--end
 		end
 	end
+	return true
 end
 
 local function dump_quest()
@@ -439,11 +490,24 @@ local function dump_quest()
     local questman = sdk.get_managed_singleton("snow.QuestManager")
     if not questman then return end
 
-	dump_quest_data( getNormalQuestDataList(questman, "_normalQuestData"), getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemy"))
-	dump_quest_data( getNormalQuestDataList(questman, "_DlQuestData"), getNormalQuestDataForEnemyList(questman, "_DlQuestDataForEnemy"))
-	dump_quest_data( getNormalQuestDataList(questman, "_nomalQuestDataKohaku"), getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemyKohaku"))
+	if not dump_quest_data(
+		getNormalQuestDataList(questman, "_normalQuestData"),
+		getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemy")
+	) then return end
+
+	if not dump_quest_data(
+		getNormalQuestDataList(questman, "_DlQuestData"),
+		getNormalQuestDataForEnemyList(questman, "_DlQuestDataForEnemy")
+	) then return end
+
+	if not dump_quest_data(
+		getNormalQuestDataList(questman, "_nomalQuestDataKohaku"),
+		getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemyKohaku")
+	) then return end
 
 	log.debug("lua:log: dump_quest end")
+
+	return true
 end
 
 local function checkQuestNo(questNo)
@@ -456,37 +520,18 @@ local function checkQuestNo(questNo)
 	return false
 end
 
-local function set_quest_data(isArena, normalQuestData_array, normalQuestDataForEnemy_array)
+local function set_quest_data(arenaSelection, normalQuestData_array, normalQuestDataForEnemy_array)
 	if normalQuestData_array == nil then return end
 	if normalQuestDataForEnemy_array == nil then return end
-	for i,quest in ipairs(normalQuestDataForEnemy_array) do
-		local QuestNo = quest:get_field("_QuestNo")
-		if QuestNo == nil then return
-		else
-			if checkQuestNo(QuestNo) then
-				quest:set_field("_EmsSetNo", 0)
-
-				local RouteNo = quest:get_field("_RouteNo")
-				local value = sdk.create_instance("System.Byte")
-				value:set_field("mValue", 10)
-				RouteNo:call("SetValue(System.Object, System.Int32)", value, 0)
-
-				local InitSetName = quest:get_field("_InitSetName")
-				local initSet = "A"
-				if not isArena then initSet = "メイン" end
-				InitSetName:call("SetValue(System.Object, System.Int32)", initSet, 0)
-				quest:set_field("_InitSetName", InitSetName)
-			end
-		end
-	end
+	
+	local testQuestNoOfMap16 = {}
 
 	for i,quest in ipairs(normalQuestData_array) do
 		local QuestNo = quest:get_field("_QuestNo")
 		if QuestNo == nil then return
 		else
 			if checkQuestNo(QuestNo) then 
-				local Map = 10
-				if not isArena then Map = 9 end
+				local Map = MapID[arenaSelection]
 				quest:set_field("_MapNo", Map)
 				quest:set_field("_InitExtraEmNum", 0)
 
@@ -499,6 +544,10 @@ local function set_quest_data(isArena, normalQuestData_array, normalQuestDataFor
 				BossEmType:call("SetValue(System.Object, System.Int32)", value, 4)
 				BossEmType:call("SetValue(System.Object, System.Int32)", value, 5)
 				BossEmType:call("SetValue(System.Object, System.Int32)", value, 6)
+				TargetBoss = BossEmType:call("GetValue(System.Int32)", 0)
+				if (map16Test[TargetBoss]) then
+					testQuestNoOfMap16[QuestNo] = true
+				end
 
 				local SwapEmRate = quest:get_field("_SwapEmRate")
 				local value = sdk.create_instance("System.Byte")
@@ -550,17 +599,49 @@ local function set_quest_data(isArena, normalQuestData_array, normalQuestDataFor
 			end
 		end
 	end
+	
+	for i,quest in ipairs(normalQuestDataForEnemy_array) do
+		local QuestNo = quest:get_field("_QuestNo")
+		if QuestNo == nil then return
+		else
+			if checkQuestNo(QuestNo) then
+				quest:set_field("_EmsSetNo", 0)
+
+				local RouteNo = quest:get_field("_RouteNo")
+				local value = sdk.create_instance("System.Byte")
+				value:set_field("mValue", 10)
+				RouteNo:call("SetValue(System.Object, System.Int32)", value, 0)
+
+				local InitSetName = quest:get_field("_InitSetName")
+				local initSet = "メイン"
+				if arenaSelection == "Arena" then initSet = "A"
+				elseif arenaSelection == "Infernal Springs" then initSet = "メイン"
+				elseif arenaSelection == "Forlorn Arena" then initSet = "メイン"
+				elseif arenaSelection == "Yawning Abyss" then
+					if (testQuestNoOfMap16[QuestNo]) then
+						initSet = "テスト"
+					else
+						initSet = "メイン"
+					end
+				end
+				
+				InitSetName:call("SetValue(System.Object, System.Int32)", initSet, 0)
+				quest:set_field("_InitSetName", InitSetName)
+			end
+		end
+	end
+
 end
 
-local function set_quest(isArena)
+local function set_quest(arenaSelection)
 	log.debug("lua:log: set_localQuestData")
 
     local questman = sdk.get_managed_singleton("snow.QuestManager")
     if not questman then return end
 
-	set_quest_data(isArena, getNormalQuestDataList(questman, "_normalQuestData"), getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemy"))
-	set_quest_data(isArena, getNormalQuestDataList(questman, "_DlQuestData"), getNormalQuestDataForEnemyList(questman, "_DlQuestDataForEnemy"))
-	set_quest_data(isArena, getNormalQuestDataList(questman, "_nomalQuestDataKohaku"), getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemyKohaku"))
+	set_quest_data(arenaSelection, getNormalQuestDataList(questman, "_normalQuestData"), getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemy"))
+	set_quest_data(arenaSelection, getNormalQuestDataList(questman, "_DlQuestData"), getNormalQuestDataForEnemyList(questman, "_DlQuestDataForEnemy"))
+	set_quest_data(arenaSelection, getNormalQuestDataList(questman, "_nomalQuestDataKohaku"), getNormalQuestDataForEnemyList(questman, "_normalQuestDataForEnemyKohaku"))
 
 	log.debug("lua:log: set_localQuestData end")
 end
@@ -635,14 +716,14 @@ local function load_quest_data(normalQuestData_array, normalQuestDataForEnemy_ar
 				local value = sdk.create_instance("System.Byte")
 				value:set_field("mValue", cfg_QuestData.read_only_quest_data[tostring(QuestNo)].SwapSetParam["1"])
 				SwapSetParam:call("SetValue(System.Byte, System.Int32)", value, 0)
-				value:set_field("value__", cfg_QuestData.read_only_quest_data[tostring(QuestNo)].SwapSetParam["2"])
+				value:set_field("mValue", cfg_QuestData.read_only_quest_data[tostring(QuestNo)].SwapSetParam["2"])
 				SwapSetParam:call("SetValue(System.Byte, System.Int32)", value, 1)
 
 				local SwapExitTime = quest:get_field("_SwapExitTime")
 				local value = sdk.create_instance("System.Byte")
 				value:set_field("mValue", cfg_QuestData.read_only_quest_data[tostring(QuestNo)].SwapExitTime["1"])
 				SwapExitTime:call("SetValue(System.Byte, System.Int32)", value, 0)
-				value:set_field("value__", cfg_QuestData.read_only_quest_data[tostring(QuestNo)].SwapExitTime["2"])
+				value:set_field("mValue", cfg_QuestData.read_only_quest_data[tostring(QuestNo)].SwapExitTime["2"])
 				SwapExitTime:call("SetValue(System.Byte, System.Int32)", value, 1)
 			end
 		end
@@ -662,7 +743,6 @@ local function load_quest()
 	log.debug("lua:log: load_quest end")
 end
 
-needs_initial_quest_data = false
 --[[
 re.on_pre_application_entry("UpdateBehavior", function() 
 	
@@ -674,38 +754,74 @@ re.on_pre_application_entry("UpdateBehavior", function()
     end
 end)]]
 
-local status = "default"
-local name = "ForceArena v2.3"
+if (needs_initial_quest_data) then
+	cfg_QuestData = {}
+	cfg_QuestData.read_only_quest_data = {}
+	if dump_quest() then
+		json.dump_file("QuestDataDump.json", cfg_QuestData)
+		needs_initial_quest_data = false
+	end
+end
 
-re.on_draw_ui(
-    function() 
-		
-        if string.len(status) > 0 then
-            imgui.text(name .. status)
-        end
-		imgui.same_line()
-        if imgui.button("set to Arena") then
-            set_quest(true)
-			status = "Arena"
-        end
-		imgui.same_line()
-		if imgui.button("set to Infernal Springs") then
-            set_quest(false)
-			status = "Infernal Springs"
-        end
-		imgui.same_line()
-		if imgui.button("reset") then
-			cfg_QuestData = json.load_file("QuestDataDump.json")
-			if not cfg_QuestData then
-				cfg_QuestData = {
-				}
-				cfg_QuestData.read_only_quest_data = {}
-				dump_quest()
+local name = "ForceArena v"..tostring(VERSION)..":"
+local status = ""
+
+local QuestAreaValues = {"Default", "Arena", "Infernal Springs", "Forlorn Arena"}
+local QuestAreaSelection = 1
+
+re.on_draw_ui(function() 
+	imgui.text(name..status)
+	imgui.same_line()
+	local changed, value = imgui.combo("click to select", QuestAreaSelection, QuestAreaValues)
+	if changed then
+		QuestAreaSelection = value
+		if (needs_initial_quest_data) then
+			cfg_QuestData = {}
+			cfg_QuestData.read_only_quest_data = {}
+			if not dump_quest() then
+				status = " fail to initialize quest data, pls select again."
+			else
+				status = ""
 				json.dump_file("QuestDataDump.json", cfg_QuestData)
+				needs_initial_quest_data = false
 			end
-            load_quest()
-			status = "default"
-        end
+		end
+		if QuestAreaValues[QuestAreaSelection] == "Default" then
+			load_quest()
+		else
+			set_quest(QuestAreaValues[QuestAreaSelection])
+		end
+	end
+end)
 
-    end
+--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==
+--[[thanks to gao_bili providing the code to prevent invalid quirous quest generated.]]
+
+local Fixed = false
+
+sdk.hook(
+	sdk.find_type_definition("snow.stage.StageManager"):get_method("onQuestClear"),
+	function(args)
+		if QuestAreaValues[QuestAreaSelection] == "Default" then return end
+		local questManager = sdk.get_managed_singleton("snow.QuestManager")
+		if not questManager then return end
+		if questManager:isMysteryQuest() then
+			load_quest()
+			Fixed = true
+		end
+	end,
+	function(retval) end
 )
+
+sdk.hook(
+    sdk.find_type_definition("snow.gui.GuiManager"):get_method("notifyReturnInVillage"),
+    function(args)
+		if Fixed then
+			set_quest(QuestAreaValues[QuestAreaSelection])
+			Fixed = false
+		end
+    end,
+	function(retval) end
+)
+
+--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==--==
