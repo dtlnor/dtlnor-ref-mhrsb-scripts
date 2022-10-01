@@ -1,3 +1,4 @@
+-- ver 2.0, thx 折戟沉沙 added vfx display
 
 local cfg = json.load_file("effect_show.json")
 
@@ -14,8 +15,8 @@ if not cfg.general_y then cfg.general_y = 100 end
 if not cfg.general_cap_width then cfg.general_cap_width = 350 end
 if not cfg.general_width then cfg.general_width = 450 end
 if not cfg.index_width then cfg.index_width = cfg.general_cap_width + cfg.general_width + cfg.rec_margin * 2 end
-if not cfg.EffectManager_show then cfg.EffectManager_show = true end
-if not cfg.object_effect_manager_show then cfg.object_effect_manager_show = true end
+if not cfg.EffectManager_show then cfg.EffectManager_show = false end
+if not cfg.object_effect_manager_show then cfg.object_effect_manager_show = false end
 json.dump_file("effect_show.json", cfg)
 
 local CHINESE_GLYPH_RANGES = {
@@ -29,6 +30,17 @@ local CHINESE_GLYPH_RANGES = {
 	--0x25A0, 0x25FF, -- Geometric Shapes
     0x0020, 0xE007F, -- All (https://jrgraphix.net/research/unicode_blocks.php)
     0,
+}
+
+
+local drowResources = {
+	enabled = false,
+	changed = false,
+	global_resources = {},
+	global_value = nil,
+	object_resources = {},
+	object_value = nil,
+
 }
 
 local font = imgui.load_font(cfg.FONT_NAME, cfg.FONT_SIZE, CHINESE_GLYPH_RANGES)
@@ -50,6 +62,7 @@ local printGeneralLine = function(cap, value, index)
 	general_line = general_line + 1
 end
 
+
 local dispObjectEffectManagerInfo = function(ObjEffectManager, index)
 
 	if not ObjEffectManager then return end
@@ -69,10 +82,10 @@ local dispObjectEffectManagerInfo = function(ObjEffectManager, index)
 	for i = 0, StandardData:call("get_Count") -1 do
 		local StandardDataSetting = StandardData:call("get_Item", i)
 		if StandardDataSetting then
+			local ID = StandardDataSetting:get_field("ID")
 			local dispName = StandardDataSetting:get_field("Comment")
 			local prefabDataName = StandardDataSetting:call("get_data"):call("get_Path")
-			printGeneralLine(dispName, prefabDataName, index)
-
+			printGeneralLine(dispName.." [ "..ID.." ]", prefabDataName, index)
 		end
 	end
 	
@@ -88,15 +101,47 @@ local dispObjectEffectManagerInfo = function(ObjEffectManager, index)
 				local containerID = EffectID:call("get_containerID")
 				local elementID = EffectID:call("get_elementID")
 				printGeneralLine("containerID - elementID", containerID.." - "..elementID, index)
+				if drowResources.enabled and elementID == tonumber(drowResources.object_value) then
+					local EffectContainers = CreatedEffectData:get_field("list")
+					local Count = EffectContainers:get_Count()
+
+					for idx = 0, Count - 1 do
+						local EPVDataElementList = (EffectContainers[idx]):call("getEPVDataElement")
+						_ = EPVDataElementList:get_Count()
+						for i = 0, _ - 1 do
+							local EPVDataElement = EPVDataElementList:call("get_Item", i)
+							cachedRes(EPVDataElement, false)
+						end
+					end
+				end
 			end
 
 		end
 	end
 end
 
+
+function cleanRes()	
+	drowResources.global_resources = { }
+	drowResources.object_resources = { }
+end
+function cachedRes(EPVDataElement, IsGlobal)
+	if not EPVDataElement then return end
+	if IsGlobal then
+		table.insert(drowResources.global_resources, EPVDataElement:call("get_Resources")
+			:call("get_Item(System.Int32)", 0)
+			:call("get_ResourcePath"))
+	else
+		table.insert(drowResources.object_resources, EPVDataElement:call("get_Resources")
+			:call("get_Item(System.Int32)", 0)
+			:call("get_ResourcePath"))
+	end
+end
+
+
 re.on_frame(function()
 	imgui.push_font(font)
-
+	if drowResources.enabled then cleanRes() end
 	local EffMan = sdk.get_managed_singleton("via.effect.script.EffectManager")
 	if not EffMan then return end
 
@@ -115,21 +160,16 @@ re.on_frame(function()
 			if ContainerManager then
 				local Creator = ContainerManager:call("getCreator")
 				if Creator then
-					local object_name = Creator:call("get_Name") --idk why this error
+					-- local object_name = Creator:call("get_Name") --idk why this error
+					local object_name = nil
+					try(function() object_name = Creator:call("get_Name") end)
 					--local component = Creator:call("getComponent", sdk.find_type_definition("via.effect.script.ObjectEffectManager"):get_runtime_type() )
 
 					draw.text(i.."-"..tostring(object_name), 250 * math.floor((i-1) / 25) + 25 , 40 * ( (i-1) % 25) + 25 , 0xFFFFFFFF)
-					if false then
-						local transform = Creator:call("get_Transform")
-						if transform then
-						--	local EffPos = transform:call("get_Position")
-						--	if EffPos then
-						--		--draw.world_text(tostring(object_name), EffPos, 0xFFFFFFFF)
-						--	end
-						end
-					end
+					-- debug efx -- via.effect.script.CreatedEffectContainer
 				end
 				local Container = ContainerManager:call("getContainer")
+				
 				if Container then
 					local EffectNum = Container:call("getEffectNum")
 					if EffectNum then
@@ -137,11 +177,15 @@ re.on_frame(function()
 						if EPVDataElementList then					
 							local ListSize = EPVDataElementList:get_field("mSize")
 							local List = EPVDataElementList:get_field("mItems")
+							
 							for Elementidx = 0, ListSize-1 do
 								EPVDataElement = EPVDataElementList:call("get_Item", Elementidx)
 								if EPVDataElement then
 
 									local elementid = EPVDataElement:call("get_id")
+									if drowResources.enabled and i == tonumber(drowResources.global_value) then
+										cachedRes(EPVDataElement, true)
+									end
 									if elementid then
 										draw.text("  ["..tostring(Elementidx).."]ele_id:"..tostring(elementid), 250 * math.floor((i-1) / 25) + 25 + (Elementidx*50) , 40 * ( (i-1) % 25) + 25 + 20 , 0xFFFFFFFF)
 									end
@@ -254,6 +298,36 @@ re.on_frame(function()
 	end
     imgui.pop_font()
 
+
+    if drowResources.enabled then
+    	if imgui.begin_window("effect_Resources", true, 0) then
+			imgui.text("---object effect Resources---")
+			imgui.text("all effect index: ")
+			imgui.same_line()
+			changed, value = imgui.input_text("###1", drowResources.global_value)
+			if changed then
+				drowResources.global_value = value
+			end
+			for i,v in ipairs(drowResources.global_resources) do
+				imgui.text(tostring(v))
+			end
+			imgui.new_line()
+			
+			imgui.text("object element: ")
+			imgui.same_line()
+			changed, value = imgui.input_text("###2", drowResources.object_value)
+			if changed then
+				drowResources.object_value = value
+			end
+			for i,v in ipairs(drowResources.object_resources) do
+				imgui.text(tostring(v))
+			end
+			imgui.spacing()
+			imgui.end_window()
+		else
+			drowResources.enabled = false
+		end
+    end
 end)
 
 
@@ -266,5 +340,44 @@ re.on_draw_ui(function()
     if imgui.button("effect_show Setting") then
         drawSetting = true
     end
-	
+    imgui.same_line()
+    if imgui.button("effect_show Resources") then
+        drowResources.enabled = true
+    end
+	imgui.new_line()
 end)
+
+
+if try then goto _try_ end
+try = function(call, catch, finally)
+	(function(block)
+		local main = block.main
+		local catch = block.catch
+		local finally = block.finally
+
+		assert(main)
+
+		local ok, errors = pcall(main)
+		if not ok then
+	        if catch then
+	            catch(errors)
+	        end
+	    end
+
+	    if finally then
+	        finally(ok, errors)
+	    end
+
+	    if ok then
+	        return errors
+	    end
+	end) {
+		main = call,
+		catch = catch or function(errors)
+			print("catch : " .. errors)
+		end,
+		finally = finally or function(ok, errors)
+		end
+	}
+end
+:: _try_ ::
