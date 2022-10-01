@@ -11,6 +11,7 @@
 - effect_show.lua
 
   put all the container ID and element ID displayed to screen. (write from request, I don't know efx)
+  ver 2.0 added vfx display by 折戟沉沙, thank you.
 - FixedEmScale.lua
 
   same as nexus mod
