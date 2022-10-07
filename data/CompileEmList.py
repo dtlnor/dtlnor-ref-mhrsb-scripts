@@ -1,6 +1,6 @@
 import json, io
 
-with io.open("EMList.json", mode="r", encoding="utf-8") as theFile:
+with io.open(r"EMList.json", mode="r", encoding="utf-8") as theFile:
         emList = json.load(theFile)
 
 from enum import Enum
@@ -166,14 +166,17 @@ class EnumEnemyTypeIndex(Enum):
     EnemyIndex157 = 157
     EnemyIndex158 = 158
     EnemyIndex159 = 159
-    TotalNum = 107
+    TotalNum = 116
     IndexInvalid = 65535
+    
 
 class EnumEmTypes(Enum):
     EmTypeNoData = 0
     EmType001_00 = 1
+    EmType001_02 = 513
     EmType001_07 = 1793
     EmType002_00 = 2
+    EmType002_02 = 514
     EmType002_07 = 1794
     EmType003_00 = 3
     EmType004_00 = 4
@@ -185,9 +188,11 @@ class EnumEmTypes(Enum):
     EmType023_05 = 1303
     EmType024_00 = 24
     EmType025_00 = 25
+    EmType025_08 = 2073
     EmType027_00 = 27
     EmType032_00 = 32
     EmType037_00 = 37
+    EmType037_02 = 549
     EmType042_00 = 42
     EmType044_00 = 44
     EmType047_00 = 47
@@ -204,6 +209,7 @@ class EnumEmTypes(Enum):
     EmType077_00 = 77
     EmType081_00 = 81
     EmType082_00 = 82
+    EmType082_02 = 594
     EmType082_07 = 1874
     EmType086_05 = 1366
     EmType089_00 = 89
@@ -229,12 +235,14 @@ class EnumEmTypes(Enum):
     EmType108_00 = 108
     EmType109_00 = 109
     EmType118_00 = 118
+    EmType118_05 = 1398
     EmType131_00 = 131
     EmType132_00 = 132
     EmType133_00 = 133
     EmType134_00 = 134
     EmType135_00 = 135
     EmType136_00 = 136
+    EmType136_01 = 392
     EmsType003_00 = 4099
     EmsType003_05 = 5379
     EmsType005_00 = 4101
@@ -354,23 +362,23 @@ chsEMListFromTypeIndex = [
     "镰鼬龙",
     "臣蜘蛛",
 
-    "",
-    "",
+    "金火龙",
+    "银火龙",
     "大名盾蟹",
     "将军镰蟹",
     "激昂金狮子",
-    "",
+    "月迅龙",
     "黑蚀龙",
     "天廻龙",
     "千刃龙",
     "电龙",
-    "",
+    "焰狐龙",
     "嗟怨震天怨虎龙",
     "绯天狗兽",
     "冰人鱼龙",
     "炽妃蜘蛛",
     "熔翁龙",
-    "",
+    "红莲爆鳞龙",
 
     "爵银龙",
     "冰狼龙",
@@ -378,8 +386,7 @@ chsEMListFromTypeIndex = [
 
     "冥渊龙",
     "棘龙",
-    "",
-
+    "棘茶龙",
     "巨甲虫",
     "巨蜂",
     "蓝速龙",
@@ -388,7 +395,10 @@ chsEMListFromTypeIndex = [
     "卫蜘蛛",
     "丽羊兽",
     "狡狗龙",
-    "",
+    "Unkn1",
+    "怪异克服霞龙",
+    "Unkn2",
+    "Unkn3",
 
 ]
 
@@ -477,23 +487,23 @@ engEMListFromTypeIndex = [
 
     "Rachnoid",
 
-    "",
-    "",
+    "Gold Rathian",
+    "Silver Rathalos",
     "Daimyo Hermitaur",
     "Shogun Ceanataur",
     "Furious Rajang",
-    "",
+    "Lucent Nargacuga",
     "Gore Magala",
     "Shagaru Magala",
     "Seregios",
     "Astalos",
-    "",
+    "Violet Mizutsune",
     "Scorned Magnamalo",
     "Blood Orange Bishaten",
     "Aurora Somnacanth",
     "Pyre Rakna-Kadaki",
     "Magma Almudron",
-    "",
+    "Seething Bazelgeuse",
 
     "Malzeno",
     "Lunagaron",
@@ -501,7 +511,7 @@ engEMListFromTypeIndex = [
 
     "Gaismagorm",
     "Espinas",
-    "",
+    "Flaming Espinas",
     "Hornetaur",
     "Vespoid",
     "Velociprey",
@@ -510,7 +520,10 @@ engEMListFromTypeIndex = [
     "Pyrantula",
     "Gowngoat",
     "Boggi",
-    "",
+    "Unkn1",
+    "Risen Chameleos",
+    "Unkn2",
+    "Unkn3",
 
 ]
 
@@ -526,25 +539,53 @@ for i in range(len(emList["EmTypes"])):
     ))
     #print('| '+record+' |')
 
+
+record = ' | '.join((
+    EnumEmTypes.EmTypeNoData.name,
+    '{:08X}'.format(EnumEmTypes.EmTypeNoData.value).format(),
+    "",
+    "",
+    ""
+))
+print('| '+record+' |')
 for i in range(len(EnumEnemyTypeIndex)):
     try:
         emListidx = list(emList["EnemyTypeIndex"]).index(i)
         emType = (int)(emList["EmTypes"][emListidx])
         enemyTypeIndex = (int)(emList["EnemyTypeIndex"][emListidx])
+        
         record = ' | '.join((
             EnumEmTypes(emType).name,
             '{:08X}'.format(emType).format(),
             EnumEnemyTypeIndex(enemyTypeIndex).name,
             str(enemyTypeIndex),
-            engEMListFromTypeIndex[enemyTypeIndex]
+            chsEMListFromTypeIndex[enemyTypeIndex]
         ))
         print('| '+record+' |')
     except:
-        record = ' | '.join((
-            "",
-            "",
-            EnumEnemyTypeIndex(i).name,
-            str(i),
-            ""
-        ))
-        print('| '+record+' |')
+        try:
+            record = ' | '.join((
+                "",
+                "",
+                EnumEnemyTypeIndex(i).name,
+                str(i),
+                ""
+            ))
+            print('| '+record+' |')
+        except:
+            record = ' | '.join((
+                "",
+                "",
+                "TotalNum",
+                str(EnumEnemyTypeIndex.TotalNum.value),
+                ""
+            ))
+            print('| '+record+' |')
+            record = ' | '.join((
+                "",
+                "",
+                EnumEnemyTypeIndex.IndexInvalid.name,
+                str(EnumEnemyTypeIndex.IndexInvalid.value),
+                ""
+            ))
+            print('| '+record+' |')
