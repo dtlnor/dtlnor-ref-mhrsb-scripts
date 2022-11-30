@@ -187,9 +187,11 @@ class EnumEmTypes(Enum):
     EmType023_00 = 23
     EmType023_05 = 1303
     EmType024_00 = 24
+    EmType024_08 = 2072
     EmType025_00 = 25
     EmType025_08 = 2073
     EmType027_00 = 27
+    EmType027_08 = 2075
     EmType032_00 = 32
     EmType037_00 = 37
     EmType037_02 = 549
@@ -205,6 +207,7 @@ class EnumEmTypes(Enum):
     EmType061_00 = 61
     EmType062_00 = 62
     EmType071_00 = 71
+    EmType071_05 = 1351
     EmType072_00 = 72
     EmType077_00 = 77
     EmType081_00 = 81
@@ -395,10 +398,13 @@ chsEMListFromTypeIndex = [
     "卫蜘蛛",
     "丽羊兽",
     "狡狗龙",
-    "Unkn1",
+    "怪异克服钢龙",
     "怪异克服霞龙",
+    "怪异克服炎王龙",
+    "Unkn1",
     "Unkn2",
     "Unkn3",
+    "混沌黑蚀龙",
 
 ]
 
@@ -520,10 +526,13 @@ engEMListFromTypeIndex = [
     "Pyrantula",
     "Gowngoat",
     "Boggi",
-    "Unkn1",
+    "Risen Kushala Daora",
     "Risen Chameleos",
+    "Risen Teostra",
+    "Unkn1",
     "Unkn2",
     "Unkn3",
+    "Chaotic Gore Magala",
 
 ]
 
@@ -559,7 +568,7 @@ for i in range(len(EnumEnemyTypeIndex)):
             '{:08X}'.format(emType).format(),
             EnumEnemyTypeIndex(enemyTypeIndex).name,
             str(enemyTypeIndex),
-            chsEMListFromTypeIndex[enemyTypeIndex]
+            engEMListFromTypeIndex[enemyTypeIndex]
         ))
         print('| '+record+' |')
     except:
