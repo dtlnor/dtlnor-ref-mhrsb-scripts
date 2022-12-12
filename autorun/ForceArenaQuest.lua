@@ -1,12 +1,27 @@
-local Major = 3
-local Minor = 2
+local Major = 4
+local Minor = 0
 local VERSION = Major+(Minor*0.1)
+
+local function get_AppVersion()
+	local SystemService = sdk.get_native_singleton("via.SystemService")
+	local SystemService_type = sdk.find_type_definition("via.SystemService")
+	local ApplicationVersion = sdk.call_native_func(SystemService, SystemService_type, "get_ApplicationVersion")
+	-- log.debug("lua:log: via.SystemService.ApplicationVersion: "..tostring(ApplicationVersion))
+	return ApplicationVersion
+end
 
 local needs_initial_quest_data = true
 local cfg_QuestData = json.load_file("QuestDataDump.json")
 if cfg_QuestData then needs_initial_quest_data = false end
 
 local cfg = json.load_file("ArenaTargetQuest.json")
+
+local function updateCfg()
+	cfg.ApplicationVersion = get_AppVersion()
+	cfg.quest_dump_version = VERSION
+	needs_initial_quest_data = true
+	json.dump_file("ArenaTargetQuest.json", cfg)
+end
 
 if not cfg then
 	cfg = {	}
@@ -320,7 +335,6 @@ if not cfg then
 		385408,
 		315604,
 		315605,
-		315602,
 		315629,
 		455614,
 		455615,
@@ -334,23 +348,37 @@ if not cfg then
 		385507,
 		385508,
 		385509,
+		455618,
+		315638,
+		315641,
+		385601,
+		385602,
+		385603,
+		385604,
+		385605,
+		315654,
+		315642,
+		385701,
+		385702,
+		385704,
+		385705,
+		385706,
+		385708,
+		315655,
+		315656,
 	}
 	cfg.target_questNo = Target_questNo
-	cfg.quest_dump_version = VERSION
-	json.dump_file("ArenaTargetQuest.json", cfg)
-	needs_initial_quest_data = true
+	updateCfg()
 end
 
 if not cfg.quest_dump_version then
-	cfg.quest_dump_version = VERSION
-	needs_initial_quest_data = true
-	json.dump_file("ArenaTargetQuest.json", cfg)
-else
-	if (cfg.quest_dump_version < Major) then
-		cfg.quest_dump_version = VERSION
-		needs_initial_quest_data = true
-		json.dump_file("ArenaTargetQuest.json", cfg)
-	end
+	updateCfg()
+elseif (cfg.quest_dump_version < Major) then
+	updateCfg()
+elseif not cfg.ApplicationVersion then
+	updateCfg()
+elseif (cfg.ApplicationVersion ~= get_AppVersion()) then
+	updateCfg()
 end
 
 local map16Test = {
