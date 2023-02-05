@@ -596,6 +596,9 @@ if not cfg.limitShapeStock then cfg.limitShapeStock = 1 end
 if not cfg.printAtkWorks then cfg.printAtkWorks = false end
 if not cfg.printShellWork then cfg.printShellWork = false end
 
+local screen_w = 1920
+local screen_h = 1080
+
 json.dump_file("rich_info_display.json", cfg)
 
 local total_line = 0
@@ -620,9 +623,35 @@ local font = imgui.load_font(cfg.FONT_NAME, cfg.FONT_SIZE, CHINESE_GLYPH_RANGES)
 local general_line = 0
 -- top left of rectengle
 local printGeneralLine = function(cap, value)
+	local value_color = 0xFFFFFFFF
 	draw.text(cap, cfg.general_x + cfg.rec_margin, cfg.general_y + cfg.rec_margin + general_line * cfg.line_space, 0xFFFFFFFF)
+	if value == true then
+		value = "true"
+		value_color = 0xFF00FF00
+	elseif value == false then
+		value = "false"
+		value_color = 0xFFFFFFFF
+	elseif value == nil then
+		value = "nil"
+		value_color = 0xFF808080
+	end
 	if value then
-		draw.text(tostring(value), cfg.general_x + cfg.general_cap_width + cfg.rec_margin, cfg.general_y + general_line * cfg.line_space + cfg.rec_margin, 0xFFFFFFFF)
+		draw.text(tostring(value), cfg.general_x + cfg.general_cap_width + cfg.rec_margin, cfg.general_y + general_line * cfg.line_space + cfg.rec_margin, value_color)
+	end
+	general_line = general_line + 1
+end
+
+local printGeneralLine_color = function(cap, value, value_color)
+	draw.text(cap, cfg.general_x + cfg.rec_margin, cfg.general_y + cfg.rec_margin + general_line * cfg.line_space, value)
+	if value == true then
+		value = "true"
+	elseif value == false then
+		value = "false"
+	elseif value == nil then
+		value = "nil"
+	end
+	if value then
+		draw.text(tostring(value), cfg.general_x + cfg.general_cap_width + cfg.rec_margin, cfg.general_y + general_line * cfg.line_space + cfg.rec_margin, value_color)
 	end
 	general_line = general_line + 1
 end
@@ -749,6 +778,7 @@ local showShellWorksBase = function(works_x, works_y)
 	printWorkLine("name", 0, works_x, works_y)
 end
 
+local hasShellInstance = false
 local workidx = 0
 local storedwork = {
 	[1] = 0,
@@ -957,16 +987,44 @@ damageObject.collideShapeNum = 0
 
 local HitKabutowariLastHitPos = nil
 local shellWorkResetTimeAnchor = 0
-local hasShellInstance = false
 local drawSetting = false
-re.on_frame(function()
 
-	imgui.push_font(font)
+local get_info_main = function()
+	local sceneman = sdk.get_native_singleton("via.SceneManager")
+	if not sceneman then return end
+	
+	local sceneview = sdk.call_native_func(sceneman, sdk.find_type_definition("via.SceneManager"), "get_MainView")
+	if not sceneview then return end
+	
+	local size = sceneview:call("get_Size")
+	if not size then return end
+	
+	local screen_w_t = size:get_field("w")
+	if not screen_w_t then
+		return
+	else
+		screen_w = screen_w_t
+	end
+	
+	local screen_h_t = size:get_field("h")
+	if not screen_h_t then
+		return
+	else
+		screen_h = screen_h_t
+	end
+
 
 	local PlayMan = sdk.get_managed_singleton("snow.player.PlayerManager")
 	if not PlayMan then return end
-	local MasterPlayer = PlayMan:call("findMasterPlayer")
+	-- local MasterPlayer = PlayMan:call("findMasterPlayer")
+	-- if not MasterPlayer then return end
+
+	local player = PlayMan:call("getMasterPlayerID")
+	if not player or player > 4 then return end
+	
+	local MasterPlayer = PlayMan:get_field("PlayerList"):call("get_Item", player)
 	if not MasterPlayer then return end
+	if not MasterPlayer:get_type_definition():is_a("snow.player.PlayerQuestBase") then return end
 
 	local IsFieldMainOutZone = MasterPlayer:call("get_IsFieldMainOutZone")
 	local IsFieldMainZone = MasterPlayer:call("get_IsFieldMainZone")
@@ -976,6 +1034,7 @@ re.on_frame(function()
 		if not PlayerData then return end
 		local PlayerMotionCtrl = MasterPlayer:get_field("_RefPlayerMotionCtrl")
 		if not PlayerMotionCtrl then return end
+
 		local CharacterController = MasterPlayer:call("getCharacterController")
 		if not CharacterController then return end
 
@@ -1074,14 +1133,24 @@ re.on_frame(function()
 		printGeneralLine("DRCheckingNoHitLook", tostring(field))
 		local field = DamageReflex:call("isCheckingHitLook")
 		printGeneralLine("DRCheckingHitLook", tostring(field)..ActiveDamageReflexHitLook)
-		--local field = DamageReflex:call("isChecking") --seems const
-		--printGeneralLine("DRChecking", field)
-		--local field = DamageReflex:call("isHitLook") --same as isCheckingHitLook
-		--printGeneralLine("DRHitLook", field)
+		
+		-- local field = DamageReflex:call("isChecking") --seems const
+		-- printGeneralLine("DRChecking", field)
+		local field = DamageReflex:get_field("_IsChecking")
+		if field then
+			printGeneralLine_color("DRChecking", field, 0xFF00FF00)
+		else
+			printGeneralLine("DRChecking", field)
+		end
+		local field = DamageReflex:call("isHitLook") --same as isCheckingHitLook
+		printGeneralLine("DRHitLook", field)		
 		local field = MasterPlayer:call("getDamageCancelEscapeStateName")
 		printGeneralLine("DmgCancelEscapeState", field)
 		local field = MasterPlayer:call("getDamageCancelGuardStateName")
 		printGeneralLine("DmgCancelGuardState", field)
+
+		local field = PlayerMotionCtrl:call("get_IsGuardActionDuration")
+		printGeneralLine("is GuardAction", field)
 
 		local field = HitInfo:get_field("_GuardReaction")
 		field = GlobleEnum["GuardReaction"][field]
@@ -1220,15 +1289,40 @@ re.on_frame(function()
 		local field = MasterPlayer:call("getFsmActionTimer")
 		printGeneralLine("FsmActionTimer", field)
 
+				local field = MasterPlayer:call("checkMuteki")
+		printGeneralLine("is Muteki", field)
 		local field = MasterPlayer:get_field("_MutekiTime")
-		printGeneralLine("Iframe@60fps", field)
-		
+		if field > 0 then
+			printGeneralLine_color("Iframe@60fps", field, 0xFF00FF00)
+		else
+			printGeneralLine("Iframe@60fps", field)
+		end
+
+		local field = MasterPlayer:call("checkSuperArmor")
+		printGeneralLine("is SuperArmor", field)
 		local field = MasterPlayer:get_field("_SuperArmorTimer")
-		printGeneralLine("SuperArmorTimer@60fps", field)
-		
+		if field > 0 then
+			printGeneralLine_color("SuperArmorTimer@60fps", field, 0xFF00FF00)
+		else
+			printGeneralLine("SuperArmorTimer@60fps", field)
+		end
+
+		-- not work
+		local field = MasterPlayer:call("checkHyperArmor")
+		printGeneralLine("is HyperArmor", field)
+		-- local Situation = sdk.create_instance("snow.player.Situation")
+		-- Situation:set_field("value__", 0x60A1358B)
+		-- local field = MasterPlayer:call("isSituationTag(snow.player.Situation)",Situation)
+		-- printGeneralLine("is isSituationTag", field)
+
 		local field = MasterPlayer:get_field("_HyperArmorTimer")
-		printGeneralLine("HyperArmorTimer@60fps", field)
-		
+		if field > 0 then
+			printGeneralLine_color("HyperArmorTimer@60fps", field, 0xFF00FF00)
+		else
+			printGeneralLine("HyperArmorTimer@60fps", field)
+		end
+
+
 		local field = MasterPlayer:get_field("_DamageReduceTimer")
 		printGeneralLine("DamageReduceTimer@60fps", field)
 		
@@ -1280,7 +1374,6 @@ re.on_frame(function()
 		--printGeneralLine("_WTCmdTimer(PAD)@60fps", field)
 		printGeneralLine("CmdWaitTimer(pad)@60fps", CmdTimer .. " | " .. WireTypeChangeDelayTimer)
 
-		
 		local mKeyOn = mNow:get_field("mKeyOn")
 		local Datas = mKeyOn:get_field("_Flag")
 		local KeyOn_1 = Datas[0]:get_field("mValue")
@@ -1397,6 +1490,8 @@ re.on_frame(function()
 				displayShellInfo(LSShell000sList, "LS000")
 			elseif WeaponType == playerWeaponType.ChargeAxe then
 				local CAShellMan = sdk.get_managed_singleton("snow.shell.ChargeAxeShellManager")
+				-- snow.shell.ChargeAxeShellManager.ChargeAxeShell000_ID
+				-- snow.shell.ChargeAxeShellManager.ShellIndex
 				if not CAShellMan then return end
 				local CAShell000sList = CAShellMan:get_field("_ChargeAxeShell000s")
 				displayShellInfo(CAShell000sList, "CA000")
@@ -1468,14 +1563,111 @@ re.on_frame(function()
 		);]]
 	end
 
+	--if false then
+	if IsFieldMainOutZone or IsFieldMainZone then
+		printGeneralLine("total_damage", damageObject.total_damage)
+		printGeneralLine("physical_damage", damageObject.physical_damage)
+		printGeneralLine("elemental_damage", damageObject.elemental_damage)
+		printGeneralLine("ailment_damage", damageObject.ailment_damage)
+	
+		printGeneralLine("tempDispVal_1", damageObject.tempDispVal_1)
+		printGeneralLine("tempDispVal_2", damageObject.tempDispVal_2)
+		printGeneralLine("tempDispVal_3", damageObject.tempDispVal_3)
+		printGeneralLine("tempDispVal_List", damageObject.tempDispVal_List)
+	
+		if damageObject.HitPosOffset then
+			draw.world_text("●", damageObject.HitPosOffset, 0xAACC0000) --blue
+		end
+		if damageObject.HitPos then
+			draw.world_text("●", damageObject.HitPos, 0xAA00CC00) --green
+		end
+		
+		for shape_pos_i, shape_pos in pairs(shapePosStock) do
+			draw.world_text(shape_pos_i, shape_pos.dmgShapeCenter, 0x8000FFFF)
+			--draw.world_text("██", shape_pos.collideCenterPos, 0xFFFFFFFF)
+			draw.world_text(shape_pos_i, shape_pos.collideCenterPos, 0x800000FF) -- red (collide center)
+			if shape_pos.atkColShapeType == 3 or shape_pos.atkColShapeType == 4 then --if capsule
+				draw.world_text(shape_pos_i, shape_pos.atkShapeCenter, 0x80FF00FF)
+				draw.world_text("●", shape_pos.atkShapeCsStart, 0xAAFFFFFF)
+				draw.world_text("●", shape_pos.atkShapeCsEnd, 0xAAFFFFFF)
+				draw.world_text(shape_pos_i, shape_pos.atkShapeCsStart, 0x80FF00FF)
+				draw.world_text(shape_pos_i, shape_pos.atkShapeCsEnd, 0x80FF00FF)
+				local atkShapeCsStartVec2f = draw.world_to_screen(shape_pos.atkShapeCsStart)
+				local atkShapeCsEndVec2f = draw.world_to_screen(shape_pos.atkShapeCsEnd)
+				if atkShapeCsStartVec2f and atkShapeCsEndVec2f then 
+					draw.line(atkShapeCsStartVec2f.x, atkShapeCsStartVec2f.y,	atkShapeCsEndVec2f.x, atkShapeCsEndVec2f.y, 0xAAFFFFFF) -- pair
+					
+    				draw.capsule(shape_pos.atkShapeCsStart, shape_pos.atkShapeCsEnd, shape_pos.atkShapeCsRadi, cfg.shapeColor, true)
+				end
+				if shape_pos.atkColShapeType == 4 then
+					draw.world_text("█", shape_pos.atkPreShapeCsStart, 0xAAFFFFFF)
+					draw.world_text("█", shape_pos.atkPreShapeCsEnd, 0xAAFFFFFF)
+					draw.world_text(shape_pos_i, shape_pos.atkPreShapeCsStart, 0x80FF00FF)
+					draw.world_text(shape_pos_i, shape_pos.atkPreShapeCsEnd, 0x80FF00FF)
+				
+					local atkPreShapeCsStartVec2f = draw.world_to_screen(shape_pos.atkPreShapeCsStart)
+					local atkPreShapeCsEndVec2f = draw.world_to_screen(shape_pos.atkPreShapeCsEnd)
+					if atkPreShapeCsStartVec2f and atkPreShapeCsEndVec2f and atkShapeCsStartVec2f and atkShapeCsEndVec2f then 
+						draw.line(atkPreShapeCsStartVec2f.x, atkPreShapeCsStartVec2f.y,	atkPreShapeCsEndVec2f.x, atkPreShapeCsEndVec2f.y, 0xAAFFFFFF) -- p pair
+		
+						draw.line(atkPreShapeCsStartVec2f.x, atkPreShapeCsStartVec2f.y,	atkShapeCsStartVec2f.x, atkShapeCsStartVec2f.y, 0xAAFFFFFF) -- p start to start
+						draw.line(atkShapeCsEndVec2f.x, atkShapeCsEndVec2f.y,	atkPreShapeCsEndVec2f.x, atkPreShapeCsEndVec2f.y, 0xAAFFFFFF) -- p end to end
+
+						local currMid_x = (atkShapeCsStartVec2f.x + atkShapeCsEndVec2f.x)/2
+						local currMid_y = (atkShapeCsStartVec2f.y + atkShapeCsEndVec2f.y)/2
+		
+						local prevMid_x = (atkPreShapeCsStartVec2f.x + atkPreShapeCsEndVec2f.x)/2
+						local prevMid_y = (atkPreShapeCsStartVec2f.y + atkPreShapeCsEndVec2f.y)/2
+						
+						local StartMid_x = (atkShapeCsStartVec2f.x + atkPreShapeCsStartVec2f.x)/2
+						local StartMid_y = (atkShapeCsStartVec2f.y + atkPreShapeCsStartVec2f.y)/2
+		
+						local EndMid_x = (atkShapeCsEndVec2f.x + atkPreShapeCsEndVec2f.x)/2
+						local EndMid_y = (atkShapeCsEndVec2f.y + atkPreShapeCsEndVec2f.y)/2
+						
+						draw.line(currMid_x, currMid_y,	prevMid_x, prevMid_y, 0xAAFFFFFF) -- 
+						draw.line(StartMid_x, StartMid_y,	EndMid_x, EndMid_y, 0xAAFFFFFF) -- 
+						
+						draw.capsule(shape_pos.atkShapeCsStart, shape_pos.atkShapeCsEnd, shape_pos.atkShapeCsRadi, cfg.shapeColor, true)
+						draw.capsule(shape_pos.atkPreShapeCsStart, shape_pos.atkPreShapeCsEnd, shape_pos.atkPreShapeCsRadi, cfg.shapeColor, true)
+					end
+				end
+			elseif shape_pos.atkColShapeType == 1 or shape_pos.atkColShapeType == 2 then --if sphere
+				draw.world_text(shape_pos_i, shape_pos.atkShapeCenter, 0x80FF00FF)
+				draw.world_text("●", shape_pos.atkShapeCsStart, 0xAAFFFFFF)
+				draw.world_text(shape_pos_i, shape_pos.atkShapeCsStart, 0x80FF00FF)
+				draw.sphere(shape_pos.atkShapeCsStart, shape_pos.atkShapeCsRadi, cfg.shapeColor, true)
+				if shape_pos.atkColShapeType == 2 then
+					draw.world_text("█", shape_pos.atkPreShapeCsStart, 0xAAFFFFFF)
+					draw.world_text(shape_pos_i, shape_pos.atkPreShapeCsStart, 0x80FF00FF)
+					local atkShapeCsStartVec2f = draw.world_to_screen(shape_pos.atkShapeCsStart)
+					local atkShapeCsEndVec2f = draw.world_to_screen(shape_pos.atkPreShapeCsStart)
+					
+					if atkShapeCsStartVec2f and atkShapeCsEndVec2f then 
+						draw.line(atkShapeCsStartVec2f.x, atkShapeCsStartVec2f.y,	atkShapeCsEndVec2f.x, atkShapeCsEndVec2f.y, 0xAAFFFFFF) -- pair
+						draw.sphere(shape_pos.atkPreShapeCsStart, shape_pos.atkPreShapeCsRadi, cfg.shapeColor, true)
+					end
+				end
+			end
+		end
+	end
+
+	total_line = general_line
+end
+
+
+re.on_frame(function()
+	imgui.push_font(font)
+	get_info_main()
+	
 	if drawSetting then
 		if imgui.begin_window("rich info dispay setting", true, 0) then
 			imgui.text("---general panel---")
 			local saveChanged = false
-			changed, value = imgui.slider_int("general_x", cfg.general_x, -1920, 1920)
+			changed, value = imgui.slider_int("general_x", cfg.general_x, -screen_w, screen_w)
         	if changed then cfg.general_x = value  
 				saveChanged = true end
-			changed, value = imgui.slider_int("general_y", cfg.general_y, -1080, 1080)
+			changed, value = imgui.slider_int("general_y", cfg.general_y, -screen_h, screen_h)
         	if changed then cfg.general_y = value
 				saveChanged = true end
 			changed, value = imgui.slider_int("general_cap_width", cfg.general_cap_width, 100, 600)
@@ -1575,97 +1767,6 @@ re.on_frame(function()
 		end
 	end
 
-	--if false then
-	if IsFieldMainOutZone or IsFieldMainZone then
-		printGeneralLine("total_damage", damageObject.total_damage)
-		printGeneralLine("physical_damage", damageObject.physical_damage)
-		printGeneralLine("elemental_damage", damageObject.elemental_damage)
-		printGeneralLine("ailment_damage", damageObject.ailment_damage)
-	
-		printGeneralLine("tempDispVal_1", damageObject.tempDispVal_1)
-		printGeneralLine("tempDispVal_2", damageObject.tempDispVal_2)
-		printGeneralLine("tempDispVal_3", damageObject.tempDispVal_3)
-		printGeneralLine("tempDispVal_List", damageObject.tempDispVal_List)
-	
-		if damageObject.HitPosOffset then
-			draw.world_text("●", damageObject.HitPosOffset, 0xAACC0000) --blue
-		end
-		if damageObject.HitPos then
-			draw.world_text("●", damageObject.HitPos, 0xAA00CC00) --green
-		end
-		
-		for shape_pos_i, shape_pos in pairs(shapePosStock) do
-			draw.world_text(shape_pos_i, shape_pos.dmgShapeCenter, 0x8000FFFF)
-			--draw.world_text("██", shape_pos.collideCenterPos, 0xFFFFFFFF)
-			draw.world_text(shape_pos_i, shape_pos.collideCenterPos, 0x800000FF) -- red (collide center)
-			if shape_pos.atkColShapeType == 3 or shape_pos.atkColShapeType == 4 then --if capsule
-				draw.world_text(shape_pos_i, shape_pos.atkShapeCenter, 0x80FF00FF)
-				draw.world_text("●", shape_pos.atkShapeCsStart, 0xAAFFFFFF)
-				draw.world_text("●", shape_pos.atkShapeCsEnd, 0xAAFFFFFF)
-				draw.world_text(shape_pos_i, shape_pos.atkShapeCsStart, 0x80FF00FF)
-				draw.world_text(shape_pos_i, shape_pos.atkShapeCsEnd, 0x80FF00FF)
-				local atkShapeCsStartVec2f = draw.world_to_screen(shape_pos.atkShapeCsStart)
-				local atkShapeCsEndVec2f = draw.world_to_screen(shape_pos.atkShapeCsEnd)
-				if atkShapeCsStartVec2f and atkShapeCsEndVec2f then 
-					draw.line(atkShapeCsStartVec2f.x, atkShapeCsStartVec2f.y,	atkShapeCsEndVec2f.x, atkShapeCsEndVec2f.y, 0xAAFFFFFF) -- pair
-					
-    				draw.capsule(shape_pos.atkShapeCsStart, shape_pos.atkShapeCsEnd, shape_pos.atkShapeCsRadi, cfg.shapeColor, true)
-				end
-				if shape_pos.atkColShapeType == 4 then
-					draw.world_text("█", shape_pos.atkPreShapeCsStart, 0xAAFFFFFF)
-					draw.world_text("█", shape_pos.atkPreShapeCsEnd, 0xAAFFFFFF)
-					draw.world_text(shape_pos_i, shape_pos.atkPreShapeCsStart, 0x80FF00FF)
-					draw.world_text(shape_pos_i, shape_pos.atkPreShapeCsEnd, 0x80FF00FF)
-				
-					local atkPreShapeCsStartVec2f = draw.world_to_screen(shape_pos.atkPreShapeCsStart)
-					local atkPreShapeCsEndVec2f = draw.world_to_screen(shape_pos.atkPreShapeCsEnd)
-					if atkPreShapeCsStartVec2f and atkPreShapeCsEndVec2f and atkShapeCsStartVec2f and atkShapeCsEndVec2f then 
-						draw.line(atkPreShapeCsStartVec2f.x, atkPreShapeCsStartVec2f.y,	atkPreShapeCsEndVec2f.x, atkPreShapeCsEndVec2f.y, 0xAAFFFFFF) -- p pair
-		
-						draw.line(atkPreShapeCsStartVec2f.x, atkPreShapeCsStartVec2f.y,	atkShapeCsStartVec2f.x, atkShapeCsStartVec2f.y, 0xAAFFFFFF) -- p start to start
-						draw.line(atkShapeCsEndVec2f.x, atkShapeCsEndVec2f.y,	atkPreShapeCsEndVec2f.x, atkPreShapeCsEndVec2f.y, 0xAAFFFFFF) -- p end to end
-
-						local currMid_x = (atkShapeCsStartVec2f.x + atkShapeCsEndVec2f.x)/2
-						local currMid_y = (atkShapeCsStartVec2f.y + atkShapeCsEndVec2f.y)/2
-		
-						local prevMid_x = (atkPreShapeCsStartVec2f.x + atkPreShapeCsEndVec2f.x)/2
-						local prevMid_y = (atkPreShapeCsStartVec2f.y + atkPreShapeCsEndVec2f.y)/2
-						
-						local StartMid_x = (atkShapeCsStartVec2f.x + atkPreShapeCsStartVec2f.x)/2
-						local StartMid_y = (atkShapeCsStartVec2f.y + atkPreShapeCsStartVec2f.y)/2
-		
-						local EndMid_x = (atkShapeCsEndVec2f.x + atkPreShapeCsEndVec2f.x)/2
-						local EndMid_y = (atkShapeCsEndVec2f.y + atkPreShapeCsEndVec2f.y)/2
-						
-						draw.line(currMid_x, currMid_y,	prevMid_x, prevMid_y, 0xAAFFFFFF) -- 
-						draw.line(StartMid_x, StartMid_y,	EndMid_x, EndMid_y, 0xAAFFFFFF) -- 
-						
-						draw.capsule(shape_pos.atkShapeCsStart, shape_pos.atkShapeCsEnd, shape_pos.atkShapeCsRadi, cfg.shapeColor, true)
-						draw.capsule(shape_pos.atkPreShapeCsStart, shape_pos.atkPreShapeCsEnd, shape_pos.atkPreShapeCsRadi, cfg.shapeColor, true)
-					end
-				end
-			elseif shape_pos.atkColShapeType == 1 or shape_pos.atkColShapeType == 2 then --if sphere
-				draw.world_text(shape_pos_i, shape_pos.atkShapeCenter, 0x80FF00FF)
-				draw.world_text("●", shape_pos.atkShapeCsStart, 0xAAFFFFFF)
-				draw.world_text(shape_pos_i, shape_pos.atkShapeCsStart, 0x80FF00FF)
-				draw.sphere(shape_pos.atkShapeCsStart, shape_pos.atkShapeCsRadi, cfg.shapeColor, true)
-				if shape_pos.atkColShapeType == 2 then
-					draw.world_text("█", shape_pos.atkPreShapeCsStart, 0xAAFFFFFF)
-					draw.world_text(shape_pos_i, shape_pos.atkPreShapeCsStart, 0x80FF00FF)
-					local atkShapeCsStartVec2f = draw.world_to_screen(shape_pos.atkShapeCsStart)
-					local atkShapeCsEndVec2f = draw.world_to_screen(shape_pos.atkPreShapeCsStart)
-					
-					if atkShapeCsStartVec2f and atkShapeCsEndVec2f then 
-						draw.line(atkShapeCsStartVec2f.x, atkShapeCsStartVec2f.y,	atkShapeCsEndVec2f.x, atkShapeCsEndVec2f.y, 0xAAFFFFFF) -- pair
-						draw.sphere(shape_pos.atkPreShapeCsStart, shape_pos.atkPreShapeCsRadi, cfg.shapeColor, true)
-					end
-				end
-			end
-		end
-		
-
-	end
-	total_line = general_line
     imgui.pop_font()
 end)
 
